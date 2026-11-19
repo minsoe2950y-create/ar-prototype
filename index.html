@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>책상 위 AR 캐릭터</title>
+<!-- AR 엔진: Google model-viewer (아이폰 Quick Look + 안드로이드 WebXR/Scene Viewer 자동 전환) -->
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
+<style>
+  :root { --accent:#ff7a2f; --ink:#1d1d1f; --soft:#f4efe9; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:var(--soft); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif; }
+  main { position:fixed; inset:0; display:flex; flex-direction:column; }
+  header { padding:calc(14px + env(safe-area-inset-top)) 20px 6px; text-align:center; }
+  header h1 { margin:0; font-size:20px; letter-spacing:-0.3px; }
+  header p  { margin:4px 0 0; font-size:14px; color:#6b6b70; }
+  model-viewer { flex:1; width:100%; background:radial-gradient(circle at 50% 55%,#fff 0%,var(--soft) 70%);
+    --poster-color:transparent; --progress-bar-color:var(--accent); }
+  .ar-btn { position:absolute; left:50%; bottom:calc(92px + env(safe-area-inset-bottom)); transform:translateX(-50%);
+    border:0; border-radius:999px; padding:16px 28px; font-size:17px; font-weight:700; color:#fff; white-space:nowrap;
+    background:var(--accent); box-shadow:0 8px 24px rgba(255,122,47,.4); }
+  .ar-btn:active { transform:translateX(-50%) scale(.97); }
+  .anims { position:absolute; left:0; right:0; bottom:calc(28px + env(safe-area-inset-bottom));
+    display:flex; justify-content:center; gap:8px; flex-wrap:wrap; padding:0 16px; }
+  .anims button { border:1.5px solid #d9d2ca; background:#fff; color:var(--ink); border-radius:999px;
+    padding:9px 16px; font-size:14px; font-weight:600; }
+  .anims button.on { border-color:var(--accent); color:var(--accent); }
+  .notice { position:absolute; left:16px; right:16px; top:12px; padding:12px 14px; border-radius:14px;
+    background:#fff; box-shadow:0 4px 16px rgba(0,0,0,.08); font-size:14px; line-height:1.5; display:none; }
+  .notice.show { display:block; }
+  /* AR 화면 안에서 보이는 안내 (안드로이드 WebXR) */
+  .ar-hint { display:none; position:absolute; left:50%; top:calc(24px + env(safe-area-inset-top)); transform:translateX(-50%);
+    background:rgba(0,0,0,.6); color:#fff; padding:10px 16px; border-radius:999px; font-size:14px; white-space:nowrap; }
+  model-viewer[ar-status="session-started"] .ar-hint { display:block; }
+  model-viewer[ar-tracking="not-tracking"] .ar-hint::after { content:" — 폰을 천천히 움직여 주세요"; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>책상 위 AR 캐릭터</h1>
+    <p>버튼을 누르고 휴대폰 카메라로 책상을 비춰보세요</p>
+  </header>
+
+  <model-viewer id="mv"
+      src="character.glb"
+      ios-src="character.usdz"
+      alt="책상 위를 걸어다니는 3D 캐릭터"
+      ar ar-modes="webxr scene-viewer quick-look" ar-placement="floor"
+      autoplay animation-name="Walk"
+      camera-controls touch-action="pan-y"
+      camera-orbit="20deg 70deg auto" field-of-view="30deg"
+      shadow-intensity="1" shadow-softness="0.8" exposure="1.05"
+      environment-image="neutral">
+    <button slot="ar-button" class="ar-btn">📱 내 책상에 놓아보기</button>
+    <div class="ar-hint">책상을 비추고 캐릭터를 탭해서 옮겨보세요</div>
+    <div id="notice" class="notice"></div>
+    <div id="anims" class="anims"></div>
+  </model-viewer>
+</main>
+
+<script type="module">
+  const mv = document.getElementById('mv');
+  const notice = document.getElementById('notice');
+  const animBox = document.getElementById('anims');
+  const show = (msg) => { notice.innerHTML = msg; notice.classList.add('show'); };
+
+  // 모델 안에 들어있는 애니메이션 목록을 읽어서 버튼으로 만들어 준다.
+  // (블렌더에서 만든 Action 이름이 그대로 버튼 이름이 됨)
+  const LABELS = { Walk: '🚶 걷기', Wave: '👋 인사' };
+  mv.addEventListener('load', () => {
+    animBox.innerHTML = '';
+    const list = mv.availableAnimations || [];
+    if (!list.includes(mv.animationName)) mv.animationName = list[0];
+    if (list.length < 2) return;
+    list.forEach((name) => {
+      const b = document.createElement('button');
+      b.textContent = LABELS[name] || name;
+      b.onclick = () => {
+        mv.animationName = name; mv.play();
+        [...animBox.children].forEach((c) => c.classList.toggle('on', c === b));
+      };
+      if (name === mv.animationName) b.classList.add('on');
+      animBox.appendChild(b);
+    });
+  });
+
+  mv.addEventListener('error', () => show('⚠️ 3D 모델을 불러오지 못했어요. 파일 이름이 <b>character.glb</b>인지 확인해 주세요.'));
+
+  // AR 실행이 안 될 때 안내
+  mv.addEventListener('ar-status', (e) => {
+    if (e.detail.status === 'failed')
+      show('AR을 시작하지 못했어요. 안드로이드는 <b>Chrome</b>, 아이폰은 <b>Safari</b>로 열어주세요. (카카오톡 등 앱 안의 브라우저에서는 AR이 막혀 있을 수 있어요 — 오른쪽 위 메뉴에서 "다른 브라우저로 열기")');
+  });
+
+  // PC 등 AR이 안 되는 기기에서 열었을 때
+  customElements.whenDefined('model-viewer').then(() => {
+    setTimeout(() => {
+      if (!mv.canActivateAR) {
+        const inApp = /KAKAOTALK|Instagram|FBAN|FBAV|Line\/|NAVER/i.test(navigator.userAgent);
+        show(inApp
+          ? '앱 안의 브라우저에서는 AR이 안 될 수 있어요. 메뉴에서 <b>"다른 브라우저로 열기"</b>(아이폰은 Safari, 안드로이드는 Chrome)를 눌러주세요.'
+          : '이 기기에서는 AR을 쓸 수 없어요. <b>휴대폰</b>(아이폰 Safari / 안드로이드 Chrome)으로 이 링크를 열어주세요. 지금은 3D 미리보기만 돼요.');
+      }
+    }, 1500);
+  });
+</script>
+</body>
+</html>
